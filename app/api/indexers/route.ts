@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma';
 const helius = new Helius(process.env.NEXT_PUBLIC_HELIUS_API_KEY!);
 const privy = new PrivyClient(
     process.env.NEXT_PUBLIC_PRIVY_APP_ID as string,
-    process.env.PRIVY_APP_SECRET as string
+    process.env.NEXT_PUBLIC_PRIVY_APP_SECRET as string
 );
 
 async function addAddressToWebhook(address: string, eventTypes: string[]): Promise<boolean>
@@ -54,7 +54,7 @@ export async function POST(request: Request)
     try {
         // Parse the request body
         const body = await request.json();
-        const { name, postgresUrl, solanaAddress, eventTypes, filter, authToken } = body;
+        const { name, postgresUrl, solanaAddress, eventTypes, authToken } = body;
 
         // Verify user authentication if token provided
         let userId = null;
@@ -62,6 +62,7 @@ export async function POST(request: Request)
             try {
                 const verifiedClaims = await privy.verifyAuthToken(authToken);
                 if (verifiedClaims) {
+                    console.log('Verified claims:', verifiedClaims.userId);
                     const privyUser = await privy.getUser(verifiedClaims.userId);
                     console.log('Privy user:', privyUser);
                     if (privyUser && privyUser.wallet) {
@@ -113,20 +114,20 @@ export async function POST(request: Request)
 
         // If solanaAddress is provided, add it to the webhook
         let webhookSuccess = true;
-        if (solanaAddress) {
-            console.log(`Adding address ${solanaAddress} to webhook for indexer "${name}"...`);
-            webhookSuccess = await addAddressToWebhook(
-                solanaAddress,
-                Array.isArray(eventTypes) && eventTypes.length > 0 ? eventTypes : ['all']
-            );
+        // if (solanaAddress) {
+        //     console.log(`Adding address ${solanaAddress} to webhook for indexer "${name}"...`);
+        //     webhookSuccess = await addAddressToWebhook(
+        //         solanaAddress,
+        //         Array.isArray(eventTypes) && eventTypes.length > 0 ? eventTypes : ['all']
+        //     );
 
-            if (!webhookSuccess) {
-                return NextResponse.json({
-                    success: false,
-                    message: 'Failed to register address with webhook service'
-                }, { status: 500 });
-            }
-        }
+        //     if (!webhookSuccess) {
+        //         return NextResponse.json({
+        //             success: false,
+        //             message: 'Failed to register address with webhook service'
+        //         }, { status: 500 });
+        //     }
+        // }
 
         // Create the indexer in the database
         const indexerData = {
