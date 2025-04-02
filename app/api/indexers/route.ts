@@ -135,7 +135,7 @@ export async function POST(request: Request)
                 const indexer = await prisma.indexer.create({
                     data: {
                         ...indexerData,
-                        userId: userId 
+                        userId: userId
                     }
                 });
 
@@ -156,14 +156,13 @@ export async function POST(request: Request)
             }
         } else {
             // Create indexer without user association
-            const indexer = await prisma.indexer.create({
-                data: indexerData
-            });
+            // const indexer = await prisma.indexer.create({
+            //     data: indexerData
+            // });
 
             return NextResponse.json({
-                success: true,
-                message: 'Indexer created successfully',
-                indexer
+                success: false,
+                message: 'User not found'
             }, { status: 201 });
         }
 

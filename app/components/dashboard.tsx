@@ -38,6 +38,7 @@ export default function Dashboard()
     const [indexers, setIndexers] = useState<Indexer[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [testingIndexerId, setTestingIndexerId] = useState<string | null>(null);
 
     const handleAddIndexer = async () =>
     {
@@ -91,6 +92,54 @@ export default function Dashboard()
         }
     };
 
+    const testIndexer = async (indexer: Indexer) =>
+    {
+        try {
+            setTestingIndexerId(indexer.id);
+
+            // Create mock transaction data based on the indexer's configured event types
+            const mockEventType = indexer.eventTypes.length > 0
+                ? indexer.eventTypes[0]
+                : 'nft_sale';
+
+            // Prepare the mock transaction data
+            const mockData = {
+                indexerId: indexer.id,
+                address: indexer.solanaAddress || "DRpbCBMxVnDK7maPM5tGv6MvB3v1sRMC86PZ8okm21hy",
+                eventType: mockEventType,
+                timestamp: new Date().toISOString(),
+                testRun: true
+            };
+
+            // Send the test data to the webhook endpoint
+            const response = await fetch('/api/webhook/test', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(mockData),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to test indexer');
+            }
+
+            alert('Test successful! Mock transaction sent to indexer.');
+        } catch (err) {
+            console.error('Error testing indexer:', err);
+            alert('Error testing indexer: ' + (err instanceof Error ? err.message : 'Unknown error'));
+        } finally {
+            setTestingIndexerId(null);
+        }
+    };
+
+    const viewLogs = (indexer: Indexer) =>
+    {
+        // This functionality will be implemented later
+        alert('Log viewing will be implemented in a future update.');
+    };
+
     return (
         <div className="p-6 bg-card text-card-foreground rounded-lg shadow-sm">
             <div className="flex justify-between items-center mb-6">
@@ -126,12 +175,12 @@ export default function Dashboard()
                         Welcome to the Helius Indexer dashboard. Here you can monitor and analyze blockchain data.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="p-4 bg-accent rounded-md">
+                        {/* <div className="p-4 bg-accent rounded-md">
                             <h3 className="text-sm font-medium">Indexed Transactions</h3>
                             <p className="text-2xl font-bold">
                                 {indexers.reduce((sum, indexer) => sum + indexer.transactions, 0)}
                             </p>
-                        </div>
+                        </div> */}
                         <div className="p-4 bg-accent rounded-md">
                             <h3 className="text-sm font-medium">Active Indexers</h3>
                             <p className="text-2xl font-bold">{indexers.length}</p>
@@ -195,15 +244,30 @@ export default function Dashboard()
                                                 </span>
                                             </td>
                                             <td className="p-2">
-                                                <button
-                                                    className="text-xs text-blue-600 hover:text-blue-800 mr-2"
-                                                    onClick={() =>
-                                                    {
-                                                        setIndexers(indexers.filter(i => i.id !== indexer.id));
-                                                    }}
-                                                >
-                                                    Remove
-                                                </button>
+                                                <div className="flex space-x-2">
+                                                    <button
+                                                        className="text-xs text-green-600 hover:text-green-800"
+                                                        onClick={() => testIndexer(indexer)}
+                                                        disabled={testingIndexerId === indexer.id}
+                                                    >
+                                                        {testingIndexerId === indexer.id ? 'Testing...' : 'Test'}
+                                                    </button>
+                                                    <button
+                                                        className="text-xs text-purple-600 hover:text-purple-800"
+                                                        onClick={() => viewLogs(indexer)}
+                                                    >
+                                                        Logs
+                                                    </button>
+                                                    <button
+                                                        className="text-xs text-blue-600 hover:text-blue-800"
+                                                        onClick={() =>
+                                                        {
+                                                            setIndexers(indexers.filter(i => i.id !== indexer.id));
+                                                        }}
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
