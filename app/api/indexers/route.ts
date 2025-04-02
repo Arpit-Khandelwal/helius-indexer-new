@@ -75,10 +75,19 @@ export async function POST(request: Request)
                         });
 
                         userId = user.id;
+                    } else {
+                        return NextResponse.json({
+                            success: false,
+                            message: 'User not found'
+                        }, { status: 404 });
                     }
                 }
             } catch (authError) {
                 console.error('Authentication error:', authError);
+                return NextResponse.json({
+                    success: false,
+                    message: 'User not found'
+                }, { status: 404 });
             }
         }
 
@@ -155,15 +164,10 @@ export async function POST(request: Request)
                 }, { status: 500 });
             }
         } else {
-            // Create indexer without user association
-            // const indexer = await prisma.indexer.create({
-            //     data: indexerData
-            // });
-
             return NextResponse.json({
                 success: false,
                 message: 'User not found'
-            }, { status: 201 });
+            }, { status: 404 });
         }
 
     } catch (error) {
@@ -203,8 +207,8 @@ export async function GET(request: Request)
             const privyUser = await privy.getUser(verifiedClaims.userId);
             if (!privyUser || !privyUser.wallet) {
                 return NextResponse.json({
-                    error: "No wallet associated with user"
-                }, { status: 400 });
+                    error: "User not found"
+                }, { status: 404 });
             }
 
             walletAddress = privyUser.wallet.address;

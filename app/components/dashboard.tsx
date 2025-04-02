@@ -28,7 +28,7 @@ interface Indexer
 
 export default function Dashboard()
 {
-    const { user } = usePrivy();
+    const { user, getAccessToken } = usePrivy();
     const [showAddIndexerModal, setShowAddIndexerModal] = useState(false);
     const [indexerName, setIndexerName] = useState('');
     const [postgresUrl, setPostgresUrl] = useState('');
@@ -47,6 +47,8 @@ export default function Dashboard()
             setError('');
 
             try {
+                const authToken = await getAccessToken();
+
                 const response = await fetch('/api/indexers', {
                     method: 'POST',
                     headers: {
@@ -57,7 +59,8 @@ export default function Dashboard()
                         postgresUrl: postgresUrl,
                         solanaAddress: solanaAddress,
                         eventTypes: eventTypes,
-                        filter: indexerFilter
+                        filter: indexerFilter,
+                        authToken: authToken
                     }),
                 });
 
