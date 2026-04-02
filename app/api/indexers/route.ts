@@ -10,9 +10,10 @@ const privy = new PrivyClient(
     process.env.NEXT_PUBLIC_PRIVY_APP_SECRET as string
 );
 
-async function addAddressToWebhook(address: string, eventTypes: string[]): Promise<boolean>
+// Rename parameter to _eventTypes to indicate it's intentionally unused
+async function addAddressToWebhook(address: string, _eventTypes: string[]): Promise<boolean>
 {
-    const webhooksUpdate = await helius.appendAddressesToWebhook(
+    await helius.appendAddressesToWebhook(
         process.env.NEXT_PUBLIC_HELIUS_WEBHOOK_ID!,
         [address],
     );
@@ -54,7 +55,7 @@ export async function POST(request: Request)
     try {
         // Parse the request body
         const body = await request.json();
-        const { name, postgresUrl, solanaAddress, eventTypes, authToken } = body;
+        const { name, postgresUrl, solanaAddress, _eventTypes, authToken } = body;
 
         // Verify user authentication if token provided
         let userId = null;
@@ -114,26 +115,26 @@ export async function POST(request: Request)
 
         // If solanaAddress is provided, add it to the webhook
         let webhookSuccess = true;
-        // if (solanaAddress) {
-        //     console.log(`Adding address ${solanaAddress} to webhook for indexer "${name}"...`);
-        //     webhookSuccess = await addAddressToWebhook(
-        //         solanaAddress,
-        //         Array.isArray(eventTypes) && eventTypes.length > 0 ? eventTypes : ['all']
-        //     );
+        if (solanaAddress) {
+            console.log(`Adding address ${solanaAddress} to webhook for indexer "${name}"...`);
+            webhookSuccess = await addAddressToWebhook(
+                solanaAddress,
+                Array.isArray(_eventTypes) && _eventTypes.length > 0 ? _eventTypes : ['all']
+            );
 
-        //     if (!webhookSuccess) {
-        //         return NextResponse.json({
-        //             success: false,
-        //             message: 'Failed to register address with webhook service'
-        //         }, { status: 500 });
-        //     }
-        // }
+            if (!webhookSuccess) {
+                return NextResponse.json({
+                    success: false,
+                    message: 'Failed to register address with webhook service'
+                }, { status: 500 });
+            }
+        }
 
         // Create the indexer in the database
         const indexerData = {
             connectionString: postgresUrl,
             addresses: solanaAddress ? [solanaAddress] : [], // Store as array
-            events: Array.isArray(eventTypes) ? eventTypes : [],
+            events: Array.isArray(_eventTypes) ? _eventTypes : [],
             status: 'active',
         };
 
@@ -240,13 +241,34 @@ export async function GET(request: Request)
                 id: true,
                 addresses: true,
                 connectionString: true,
+                events: true,
+                status: true,
                 createdAt: true,
                 updatedAt: true
             }
         });
 
+        console.log('Found indexers:', indexers); // Debug log
+
+        // Transform the data to match what the frontend expects
+        const transformedIndexers = indexers.map(indexer => ({
+            id: indexer.id,
+            postgresUrl: indexer.connectionString,
+            connectionString: indexer.connectionString,
+            solanaAddress: indexer.addresses && indexer.addresses.length > 0 ? indexer.addresses[0] : '',
+            addresses: indexer.addresses || [],
+            eventTypes: indexer.events || [],
+            events: indexer.events || [],
+            status: indexer.status || 'active',
+            transactions: 0, // Default value since we don't track this yet
+            createdAt: indexer.createdAt,
+            updatedAt: indexer.updatedAt
+        }));
+
+        console.log('Transformed indexers for frontend:', transformedIndexers); // Debug log
+
         return NextResponse.json({
-            indexers
+            indexers: transformedIndexers
         }, { status: 200 });
     } catch (error) {
         console.error("Error fetching indexers:", error);

@@ -1,3 +1,4 @@
+import { Client } from 'pg';
 import { prisma } from "@/lib/prisma";
 
 async function getAddresses(): Promise<string[]>
@@ -44,7 +45,17 @@ export async function POST(request: Request)
     }, { status: 200 });
 }
 
-async function saveToDatabase(entry: any, address: string)
+interface WebhookData
+{
+    indexerId: string;
+    address: string;
+    eventType: string;
+    timestamp: string;
+    testRun?: boolean;
+    // Add other properties as needed
+}
+
+async function saveToDatabase(entry: WebhookData, address: string)
 {
     const result = await prisma.indexer.findFirst({
         where: {
@@ -65,7 +76,6 @@ async function saveToDatabase(entry: any, address: string)
     const connectionString = result.connectionString;
 
     // use pg to connect and add data to the database
-    const { Client } = require('pg');
     try {
         const client = new Client({
             connectionString: connectionString,
@@ -80,6 +90,7 @@ async function saveToDatabase(entry: any, address: string)
         await client.query(initializeDB);
         // Insert the data into the database
         const query = `INSERT INTO transactions (description, address) VALUES ($1, $2)`;
+        //@ts-expect-error description not found in type
         const values = [entry.description, address];
         await client.query(query, values);
         await client.end();

@@ -2,12 +2,11 @@
 
 import { usePrivy } from '@privy-io/react-auth';
 import Dashboard from './dashboard';
-import { useState } from 'react';
 
 export default function LoginButton()
 {
   const { login, authenticated, user, logout } = usePrivy();
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  // const [showUserMenu, setShowUserMenu] = useState(false);
 
   if (authenticated) {
     return (

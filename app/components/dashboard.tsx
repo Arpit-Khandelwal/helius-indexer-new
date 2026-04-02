@@ -1,7 +1,7 @@
 'use client';
 
 import { usePrivy } from '@privy-io/react-auth';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Define event types enum
 const EVENT_TYPES = [
@@ -12,6 +12,24 @@ const EVENT_TYPES = [
     { value: 'swap', label: 'Token Swap' },
     { value: 'program_call', label: 'Program Call' }
 ];
+
+// Define interface for indexer API response
+interface IndexerApiResponse
+{
+    id: string;
+    name?: string;
+    postgresUrl?: string;
+    connectionString: string;
+    solanaAddress?: string;
+    addresses?: string[];
+    eventTypes?: string[];
+    events?: string[];
+    filter?: string;
+    status?: string;
+    transactions?: number;
+    createdAt?: string;
+    updatedAt?: string;
+}
 
 // make interface for indexer
 interface Indexer
@@ -28,7 +46,7 @@ interface Indexer
 
 export default function Dashboard()
 {
-    const { user, getAccessToken } = usePrivy();
+    const { user, getAccessToken, authenticated } = usePrivy();
     const [showAddIndexerModal, setShowAddIndexerModal] = useState(false);
     const [indexerName, setIndexerName] = useState('');
     const [postgresUrl, setPostgresUrl] = useState('');
@@ -37,8 +55,87 @@ export default function Dashboard()
     const [indexerFilter, setIndexerFilter] = useState('');
     const [indexers, setIndexers] = useState<Indexer[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [isFetchingIndexers, setIsFetchingIndexers] = useState(false);
     const [error, setError] = useState('');
     const [testingIndexerId, setTestingIndexerId] = useState<string | null>(null);
+
+    // Function to fetch indexers from the API
+    const fetchIndexers = useCallback(async () =>
+    {
+        if (!authenticated) {
+            console.log('Not authenticated, skipping indexer fetch');
+            return;
+        }
+
+        setIsFetchingIndexers(true);
+        try {
+            console.log('Fetching indexers...');
+            const authToken = await getAccessToken();
+
+            console.log('Got access token, making API request');
+            const response = await fetch('/api/indexers', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authToken}`,
+                    'Content-Type': 'application/json',
+                }
+            });
+
+            console.log('API response status:', response.status);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Error response:', errorData);
+                throw new Error(errorData.message || errorData.error || 'Failed to fetch indexers');
+            }
+
+            const data = await response.json();
+            console.log('Fetched indexers data:', data);
+
+            // Transform data if needed to match the Indexer interface
+            const fetchedIndexers: Indexer[] = data.indexers.map((indexer: IndexerApiResponse) => ({
+                id: indexer.id,
+                name: indexer.name || `Indexer ${indexer.id.substring(0, 6)}`,
+                postgresUrl: indexer.postgresUrl || indexer.connectionString,
+                solanaAddress: indexer.solanaAddress || (indexer.addresses && indexer.addresses.length > 0 ? indexer.addresses[0] : ''),
+                eventTypes: indexer.eventTypes || indexer.events || [],
+                filter: indexer.filter || '',
+                status: indexer.status || 'active',
+                transactions: indexer.transactions || 0
+            }));
+
+            console.log('Processed indexers for UI:', fetchedIndexers);
+            setIndexers(fetchedIndexers);
+        } catch (err) {
+            console.error('Error fetching indexers:', err);
+            setError(err instanceof Error ? err.message : 'An error occurred while fetching indexers');
+        } finally {
+            setIsFetchingIndexers(false);
+        }
+    }, [authenticated, getAccessToken]);
+
+    // Fetch indexers when the component mounts and when authentication status changes
+    useEffect(() =>
+    {
+        console.log('Dashboard mounted or auth changed, authenticated:', authenticated);
+
+        // Only attempt to fetch if the user is authenticated
+        if (authenticated) {
+            fetchIndexers();
+        }
+    }, [authenticated, fetchIndexers]);
+
+    // Add another useEffect to handle user object changes
+    useEffect(() =>
+    {
+        console.log('User object changed:', user);
+
+        // If we have a user object and we're authenticated, make sure we have the indexers
+        if (user && authenticated && indexers.length === 0 && !isFetchingIndexers) {
+            console.log('User available but no indexers, fetching again');
+            fetchIndexers();
+        }
+    }, [user, authenticated, fetchIndexers, indexers.length, isFetchingIndexers]);
 
     const handleAddIndexer = async () =>
     {
@@ -48,7 +145,6 @@ export default function Dashboard()
 
             try {
                 const authToken = await getAccessToken();
-
                 const response = await fetch('/api/indexers', {
                     method: 'POST',
                     headers: {
@@ -70,7 +166,8 @@ export default function Dashboard()
                     throw new Error(data.message || 'Failed to create indexer');
                 }
 
-                setIndexers([...indexers, data.indexer]);
+                // After successfully adding an indexer, refresh the list
+                await fetchIndexers();
                 setIndexerName('');
                 setPostgresUrl('');
                 setSolanaAddress('');
@@ -99,7 +196,6 @@ export default function Dashboard()
     {
         try {
             setTestingIndexerId(indexer.id);
-
             // Create mock transaction data based on the indexer's configured event types
             const mockEventType = indexer.eventTypes.length > 0
                 ? indexer.eventTypes[0]
@@ -137,7 +233,7 @@ export default function Dashboard()
         }
     };
 
-    const viewLogs = (indexer: Indexer) =>
+    const viewLogs = (_indexer: Indexer) =>
     {
         // This functionality will be implemented later
         alert('Log viewing will be implemented in a future update.');
@@ -154,7 +250,6 @@ export default function Dashboard()
                     Add Indexer
                 </button>
             </div>
-
             <div className="space-y-6">
                 <div className="bg-secondary p-4 rounded-md">
                     <h2 className="font-medium mb-2">User Information</h2>
@@ -186,7 +281,12 @@ export default function Dashboard()
                         </div> */}
                         <div className="p-4 bg-accent rounded-md">
                             <h3 className="text-sm font-medium">Active Indexers</h3>
-                            <p className="text-2xl font-bold">{indexers.length}</p>
+                            <p className="text-2xl font-bold">
+                                {isFetchingIndexers ?
+                                    <span className="text-sm">Loading...</span> :
+                                    indexers.length
+                                }
+                            </p>
                         </div>
                         <div className="p-4 bg-accent rounded-md">
                             <h3 className="text-sm font-medium">Status</h3>
@@ -195,7 +295,25 @@ export default function Dashboard()
                     </div>
                 </div>
 
-                {indexers.length > 0 && (
+                {/* Show loading state when fetching indexers */}
+                {isFetchingIndexers && (
+                    <div className="flex justify-center items-center py-8">
+                        <p className="text-muted-foreground">Loading indexers...</p>
+                    </div>
+                )}
+
+                {/* Show a message if no indexers are found after loading */}
+                {!isFetchingIndexers && indexers.length === 0 && (
+                    <div className="bg-secondary p-6 rounded-md text-center">
+                        <h3 className="font-medium mb-2">No Indexers Found</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            You haven&apos;t created any indexers yet. Click the &quot;Add Indexer&quot; button to get started.
+                        </p>
+                    </div>
+                )}
+
+                {/* Show indexers table if we have data */}
+                {!isFetchingIndexers && indexers.length > 0 && (
                     <div className="bg-secondary p-4 rounded-md">
                         <h2 className="font-medium mb-4">Your Indexers</h2>
                         <div className="overflow-x-auto">

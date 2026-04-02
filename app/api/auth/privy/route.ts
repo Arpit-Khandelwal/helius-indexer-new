@@ -29,7 +29,7 @@ export async function POST(request: Request)
         }
 
         // Find wallet addresses linked to the user
-        let walletAddress = privyUser.wallet?.address;
+        const walletAddress = privyUser.wallet?.address;
 
         if (!walletAddress) {
             return NextResponse.json({
